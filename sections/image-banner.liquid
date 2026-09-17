@@ -29,6 +29,23 @@
   }
 {%- endstyle -%}
 
+{%- if section.settings.image == blank and section.settings.image_2 == blank -%}
+  {%- style -%}
+    #Banner-{{ section.id }} {
+      aspect-ratio: 16 / 9;
+      min-height: 0;
+    }
+    #Banner-{{ section.id }} .banner__content {
+      min-height: 0;
+    }
+    @media screen and (max-width: 749px) {
+      #Banner-{{ section.id }} {
+        aspect-ratio: 9 / 16;
+      }
+    }
+  {%- endstyle -%}
+{%- endif -%}
+
 {%- liquid
   assign full_width = '100vw'
   assign widths = '375, 550, 750, 1100, 1500, 1780, 2000, 3000, 3840'
