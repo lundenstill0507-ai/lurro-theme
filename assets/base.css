@@ -4,6 +4,19 @@ collection-component {
 }
 
 :root {
+  /* Lurro brand primitives — raw palette values, referenced by name, never typed as a
+     literal hex in a component. Scheme-level color assignments live in the Shopify
+     "Colors" theme settings (config/settings_data.json), which generate their own
+     --color-* variables per color scheme in layout/theme.liquid; these primitives are
+     the canonical source for the six brand colors outside that per-scheme system. */
+  --deep-ocean: #0A0F14;
+  --atlantic-blue: #0F3D4E;
+  --sea-glass: #5F7F7E;
+  --sand-beige: #D8C9B3;
+  --coastal-gold: #B89B6B;
+  --coastal-gold-dark: #8C6F42; /* light-scheme-only variant of Coastal Gold, not a new brand color — used where literal Coastal Gold fails AA contrast on Bone White */
+  --bone-white: #F5F3ED;
+
   --alpha-button-background: 1;
   --alpha-button-border: 1;
   --alpha-link: 0.85;
