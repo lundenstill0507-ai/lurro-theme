@@ -122,6 +122,22 @@
       padding-bottom: {{ section.settings.padding_bottom }}px;
     }
   }
+
+  /* Lurro lockup: mark ~32px tall on mobile, ~40px on desktop. The lockup SVG keeps
+     the mark at its native size within a taller canvas (mark + wordmark stacked), so
+     the rendered element height is scaled up proportionally (1907/1355) to hit that
+     mark height. */
+  .header__heading-logo-wrapper .header__heading-logo svg {
+    display: block;
+    width: auto;
+    height: 45px;
+  }
+
+  @media screen and (min-width: 750px) {
+    .header__heading-logo-wrapper .header__heading-logo svg {
+      height: 56px;
+    }
+  }
 {%- endstyle -%}
 
 <script src="{{ 'cart-notification.js' | asset_url }}" defer="defer"></script>
@@ -139,6 +155,11 @@
 
   if section.settings.sticky_header_type != 'none'
     assign header_tag = 'sticky-header'
+  endif
+
+  assign lurro_logo_asset = 'lurro-logo-dark.svg'
+  if section.settings.color_scheme == 'scheme-2' or section.settings.color_scheme == 'scheme-3'
+    assign lurro_logo_asset = 'lurro-logo-light.svg'
   endif
 %}
 
@@ -185,28 +206,9 @@
         <h1 class="header__heading">
       {%- endif -%}
       <a href="{{ routes.root_url }}" class="header__heading-link link link--text focus-inset">
-        {%- if settings.logo != blank -%}
-          <div class="header__heading-logo-wrapper">
-            {%- assign logo_alt = settings.logo.alt | default: shop.name | escape -%}
-            {%- assign logo_height = settings.logo_width | divided_by: settings.logo.aspect_ratio -%}
-            {% capture sizes %}(max-width: {{ settings.logo_width | times: 2 }}px) 50vw, {{ settings.logo_width }}px{% endcapture %}
-            {% capture widths %}{{ settings.logo_width }}, {{ settings.logo_width | times: 1.5 | round }}, {{ settings.logo_width | times: 2 }}{% endcapture %}
-            {{
-              settings.logo
-              | image_url: width: 600
-              | image_tag:
-                class: 'header__heading-logo motion-reduce',
-                widths: widths,
-                height: logo_height,
-                width: settings.logo_width,
-                alt: logo_alt,
-                sizes: sizes,
-                preload: true
-            }}
-          </div>
-        {%- else -%}
-          <span class="h2">{{ shop.name }}</span>
-        {%- endif -%}
+        <div class="header__heading-logo-wrapper">
+          <span class="svg-wrapper header__heading-logo motion-reduce">{{ lurro_logo_asset | inline_asset_content }}</span>
+        </div>
       </a>
       {%- if request.page_type == 'index' -%}
         </h1>
@@ -228,28 +230,9 @@
         <h1 class="header__heading">
       {%- endif -%}
       <a href="{{ routes.root_url }}" class="header__heading-link link link--text focus-inset">
-        {%- if settings.logo != blank -%}
-          <div class="header__heading-logo-wrapper">
-            {%- assign logo_alt = settings.logo.alt | default: shop.name | escape -%}
-            {%- assign logo_height = settings.logo_width | divided_by: settings.logo.aspect_ratio -%}
-            {% capture sizes %}(min-width: 750px) {{ settings.logo_width }}px, 50vw{% endcapture %}
-            {% capture widths %}{{ settings.logo_width }}, {{ settings.logo_width | times: 1.5 | round }}, {{ settings.logo_width | times: 2 }}{% endcapture %}
-            {{
-              settings.logo
-              | image_url: width: 600
-              | image_tag:
-                class: 'header__heading-logo',
-                widths: widths,
-                height: logo_height,
-                width: settings.logo_width,
-                alt: logo_alt,
-                sizes: sizes,
-                preload: true
-            }}
-          </div>
-        {%- else -%}
-          <span class="h2">{{ shop.name }}</span>
-        {%- endif -%}
+        <div class="header__heading-logo-wrapper">
+          <span class="svg-wrapper header__heading-logo">{{ lurro_logo_asset | inline_asset_content }}</span>
+        </div>
       </a>
       {%- if request.page_type == 'index' -%}
         </h1>
@@ -463,9 +446,7 @@
     "@context": "http://schema.org",
     "@type": "Organization",
     "name": {{ shop.name | json }},
-    {% if settings.logo %}
-      "logo": {{ settings.logo | image_url: width: 500 | prepend: "https:" | json }},
-    {% endif %}
+    "logo": {{ 'lurro-logo-dark.svg' | asset_url | prepend: "https:" | json }},
     "sameAs": [
       {{ settings.social_twitter_link | json }},
       {{ settings.social_facebook_link | json }},

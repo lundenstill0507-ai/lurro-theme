@@ -29,7 +29,7 @@
   }
 {%- endstyle -%}
 
-{%- if section.settings.image == blank and section.settings.image_2 == blank -%}
+{%- if section.settings.image_height != 'adapt' -%}
   {%- style -%}
     #Banner-{{ section.id }} {
       aspect-ratio: 16 / 9;
