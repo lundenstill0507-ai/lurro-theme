@@ -779,14 +779,15 @@
       {%- endcomment -%}
       {%- assign seo_material = product.metafields.custom.material.value -%}
       {%- assign native_sd = product | structured_data | strip -%}
+      {%- assign closing_brace = '}' -%}
       {%- assign native_sd_last_char = native_sd | slice: -1 -%}
       {%- assign native_has_material = false -%}
       {%- if native_sd contains '"material"' -%}
         {%- assign native_has_material = true -%}
       {%- endif -%}
       <script type="application/ld+json">
-        {%- if seo_material != blank and native_sd_last_char == '}' and native_has_material == false -%}
-          {{ native_sd | remove_last: '}' | rstrip }},
+        {%- if seo_material != blank and native_sd_last_char == closing_brace and native_has_material == false -%}
+          {{ native_sd | remove_last: closing_brace | rstrip }},
           "material": {{ seo_material | json }}
           }
         {%- else -%}
