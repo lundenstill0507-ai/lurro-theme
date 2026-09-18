@@ -25,10 +25,38 @@
       padding-bottom: {{ section.settings.padding_bottom }}px;
     }
   }
+
+  /* Footer brand lockup: full stacked mark-over-wordmark SVG, scaled so the mark
+     itself reads at ~48px tall. The lockup file keeps the mark at native scale above
+     a smaller wordmark in a taller canvas, so the rendered element is scaled up
+     proportionally (1907/1355) to hit that mark height, same technique as the header
+     used before it was rebuilt as a horizontal lockup. */
+  .footer__lurro-lockup {
+    display: flex;
+    justify-content: center;
+    padding-bottom: {{ section.settings.padding_top | times: 0.75 | round: 0 }}px;
+  }
+
+  .footer__lurro-lockup svg {
+    display: block;
+    width: auto;
+    height: 68px;
+  }
+
+  @media screen and (min-width: 750px) {
+    .footer__lurro-lockup {
+      padding-bottom: {{ section.settings.padding_top }}px;
+    }
+  }
 {%- endstyle -%}
 
 <footer class="footer color-{{ section.settings.color_scheme }} gradient section-{{ section.id }}-padding">
   {%- liquid
+    assign lurro_footer_logo_asset = 'lurro-logo-dark.svg'
+    if section.settings.color_scheme == 'scheme-2' or section.settings.color_scheme == 'scheme-3'
+      assign lurro_footer_logo_asset = 'lurro-logo-light.svg'
+    endif
+
     assign has_social_icons = true
     if settings.social_facebook_link == blank and settings.social_instagram_link == blank and settings.social_youtube_link == blank and settings.social_tiktok_link == blank and settings.social_twitter_link == blank and settings.social_pinterest_link == blank and settings.social_snapchat_link == blank and settings.social_tumblr_link == blank and settings.social_vimeo_link == blank
       assign has_social_icons = false
@@ -42,6 +70,13 @@
       assign only_empty_brand = true
     endif
   -%}
+
+  <div class="footer__lurro-lockup">
+    <a href="{{ routes.root_url }}" aria-label="Lurro" class="link link--text focus-inset">
+      <span aria-hidden="true">{{ lurro_footer_logo_asset | inline_asset_content }}</span>
+    </a>
+  </div>
+
   {%- if section.blocks.size > 0
     or section.settings.newsletter_enable
     or section.settings.show_social

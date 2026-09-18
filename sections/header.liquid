@@ -123,19 +123,60 @@
     }
   }
 
-  /* Lurro lockup: mark ~32px tall on mobile, ~40px on desktop. The lockup SVG keeps
-     the mark at its native size within a taller canvas (mark + wordmark stacked), so
-     the rendered element height is scaled up proportionally (1907/1355) to hit that
-     mark height. */
-  .header__heading-logo-wrapper .header__heading-logo svg {
+  /* Lurro horizontal lockup: mark (SVG, exact px height) + "Lurro" wordmark (live text)
+     assembled side by side. Text is sized off an approximate cap-height ratio for
+     Cormorant (~0.66-0.70 of font-size) rather than a measured one, and nudged down
+     slightly to align its optical center (cap-to-baseline block) with the mark's,
+     since flex align-items:center only centers line boxes, not glyph ink. Expect to
+     tune font-size / translateY visually.
+     The lockup's own height is pinned to the mark's height (not auto/content), so the
+     wordmark's taller line-box (font-size > mark height, at line-height:1) overflows
+     visually instead of inflating the header's grid row and shifting the nav/icons. */
+  .lurro-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 30px;
+    color: rgb(var(--color-foreground));
+  }
+
+  .lurro-lockup__mark {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .lurro-lockup__mark svg {
     display: block;
     width: auto;
-    height: 45px;
+    height: 30px;
+  }
+
+  .lurro-lockup__word {
+    display: block;
+    font-family: var(--font-heading-family);
+    font-weight: var(--font-heading-weight);
+    font-style: var(--font-heading-style);
+    font-size: 44px;
+    line-height: 1;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transform: translateY(2px);
+    white-space: nowrap;
   }
 
   @media screen and (min-width: 750px) {
-    .header__heading-logo-wrapper .header__heading-logo svg {
-      height: 56px;
+    .lurro-lockup {
+      gap: 12px;
+      height: 36px;
+    }
+
+    .lurro-lockup__mark svg {
+      height: 36px;
+    }
+
+    .lurro-lockup__word {
+      font-size: 53px;
+      transform: translateY(2px);
     }
   }
 {%- endstyle -%}
@@ -157,9 +198,9 @@
     assign header_tag = 'sticky-header'
   endif
 
-  assign lurro_logo_asset = 'lurro-logo-dark.svg'
+  assign lurro_mark_asset = 'lurro-mark-dark.svg'
   if section.settings.color_scheme == 'scheme-2' or section.settings.color_scheme == 'scheme-3'
-    assign lurro_logo_asset = 'lurro-logo-light.svg'
+    assign lurro_mark_asset = 'lurro-mark-light.svg'
   endif
 %}
 
@@ -205,10 +246,11 @@
       {%- if request.page_type == 'index' -%}
         <h1 class="header__heading">
       {%- endif -%}
-      <a href="{{ routes.root_url }}" class="header__heading-link link link--text focus-inset">
-        <div class="header__heading-logo-wrapper">
-          <span class="svg-wrapper header__heading-logo motion-reduce">{{ lurro_logo_asset | inline_asset_content }}</span>
-        </div>
+      <a href="{{ routes.root_url }}" class="header__heading-link link link--text focus-inset" aria-label="Lurro">
+        <span class="lurro-lockup motion-reduce" aria-hidden="true">
+          <span class="lurro-lockup__mark">{{ lurro_mark_asset | inline_asset_content }}</span>
+          <span class="lurro-lockup__word">Lurro</span>
+        </span>
       </a>
       {%- if request.page_type == 'index' -%}
         </h1>
@@ -229,10 +271,11 @@
       {%- if request.page_type == 'index' -%}
         <h1 class="header__heading">
       {%- endif -%}
-      <a href="{{ routes.root_url }}" class="header__heading-link link link--text focus-inset">
-        <div class="header__heading-logo-wrapper">
-          <span class="svg-wrapper header__heading-logo">{{ lurro_logo_asset | inline_asset_content }}</span>
-        </div>
+      <a href="{{ routes.root_url }}" class="header__heading-link link link--text focus-inset" aria-label="Lurro">
+        <span class="lurro-lockup" aria-hidden="true">
+          <span class="lurro-lockup__mark">{{ lurro_mark_asset | inline_asset_content }}</span>
+          <span class="lurro-lockup__word">Lurro</span>
+        </span>
       </a>
       {%- if request.page_type == 'index' -%}
         </h1>
