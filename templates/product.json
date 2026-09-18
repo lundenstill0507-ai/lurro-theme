@@ -36,6 +36,16 @@
         "description": {
           "type": "description"
         },
+        "materials_care": {
+          "type": "materials_care"
+        },
+        "size_guide": {
+          "type": "popup",
+          "settings": {
+            "text": "Size guide",
+            "page": "size-guide"
+          }
+        },
         "share": {
           "type": "share",
           "settings": {
@@ -51,6 +61,8 @@
         "quantity_selector",
         "buy_buttons",
         "description",
+        "materials_care",
+        "size_guide",
         "share"
       ],
       "settings": {
