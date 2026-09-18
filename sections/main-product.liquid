@@ -770,28 +770,29 @@
         endif
       -%}
 
-      <script type="application/ld+json">
-        {{ product | structured_data }}
-      </script>
       {%- comment -%}
-        Shopify's built-in structured_data filter above doesn't cover material (no
-        dimensions metafield exists yet - only material and care_instructions were
-        authorized). Kept as a separate minimal block, deliberately without
-        offers/price/availability, so it can't conflict with the native block's
-        pricing signals.
+        One Product JSON-LD object per page. Shopify's native structured_data output is
+        kept intact (name, image, description, sku, brand, offers) and material is
+        spliced into that same object, only when the custom.material metafield has a
+        value. If the native output ever stops ending in a closing brace or already
+        carries a material key, it is emitted untouched rather than risk invalid JSON.
       {%- endcomment -%}
       {%- assign seo_material = product.metafields.custom.material.value -%}
-      {%- if seo_material != blank -%}
-        <script type="application/ld+json">
-          {
-            "@context": "https://schema.org",
-            "@type": "Product",
-            "name": {{ product.title | json }},
-            "url": {{ request.origin | append: product.url | json }},
-            "material": {{ seo_material | json }}
-          }
-        </script>
+      {%- assign native_sd = product | structured_data | strip -%}
+      {%- assign native_sd_last_char = native_sd | slice: -1 -%}
+      {%- assign native_has_material = false -%}
+      {%- if native_sd contains '"material"' -%}
+        {%- assign native_has_material = true -%}
       {%- endif -%}
+      <script type="application/ld+json">
+        {%- if seo_material != blank and native_sd_last_char == '}' and native_has_material == false -%}
+          {{ native_sd | remove_last: '}' | rstrip }},
+          "material": {{ seo_material | json }}
+          }
+        {%- else -%}
+          {{ native_sd }}
+        {%- endif -%}
+      </script>
     </div>
   </product-component>
 </product-info>
