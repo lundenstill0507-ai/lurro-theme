@@ -10,6 +10,11 @@
   --seafloor-horizon: 68%;
   --seafloor-sand: color-mix(in srgb, var(--sand-beige) 35%, var(--deep-ocean));
 
+  /* Sand space below the captions. The section's row_offset setting (set inline by the
+     section) is the ceiling; the @supports block below scales it down to 2.4rem as the
+     frame gets shorter, so short screens don't spend the quiet zone on empty sand. */
+  --seafloor-offset: var(--seafloor-row-offset, 4.8rem);
+
   position: relative;
   isolation: isolate;
   display: grid;
@@ -23,6 +28,16 @@
     var(--atlantic-blue) calc(var(--seafloor-horizon) - 8%),
     var(--seafloor-sand) calc(var(--seafloor-horizon) + 8%)
   );
+}
+
+@supports (height: 100svh) {
+  .seafloor {
+    --seafloor-frame-h: calc(100svh - var(--seafloor-chrome));
+    --seafloor-offset: min(
+      var(--seafloor-row-offset, 4.8rem),
+      max(2.4rem, calc(var(--seafloor-frame-h) * 0.05))
+    );
+  }
 }
 
 @media screen and (min-width: 560px) {
@@ -105,7 +120,7 @@
 
 .seafloor__stage {
   container-type: inline-size;
-  padding-bottom: var(--seafloor-row-offset, 4.8rem);
+  padding-bottom: var(--seafloor-offset, 4.8rem);
 }
 
 .seafloor__row {
