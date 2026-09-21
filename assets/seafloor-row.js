@@ -16,6 +16,9 @@
 (() => {
   'use strict';
 
+  // Only known while this script is first running (it is deferred, so currentScript is set).
+  const SCRIPT_SRC = document.currentScript && document.currentScript.src;
+
   const SCENE = '[data-seafloor-scene]';
   const FRAME = '.seafloor';
   const ROW = '.seafloor__row';
@@ -718,6 +721,20 @@
     });
   };
 
+  // The tuning panel changed a setting that shapes the page's geometry (ratio, dwell). Rebuild
+  // the geometry and put the row back where it was, so tuning does not fling it elsewhere.
+  const retune = () => {
+    controllers.forEach((ctl) => {
+      if (ctl.mode !== 'enhanced' || !ctl.geo) return;
+      guard(ctl, 'retune', () => {
+        const travel = ctl.pos;
+        refreshGeometry(ctl);
+        window.scrollTo({ top: scrollForTravel(ctl, clamp(travel, 0, ctl.geo.travel)), behavior: 'instant' });
+        ctl.jump();
+      })();
+    });
+  };
+
   // Surface used for verification and by the tuning panel.
   window.seafloorRow = {
     controllers,
@@ -729,7 +746,17 @@
     advance,
     smoothDamp,
     applyMotionPreference,
+    retune,
   };
+
+  // Hand-tuning panel: only fetched when the address carries ?seafloor-tune, so ordinary
+  // visitors never download it. It changes CONFIG live and prints the values to keep.
+  if (SCRIPT_SRC && /[?&]seafloor-tune(=|&|$)/.test(window.location.search)) {
+    const panel = document.createElement('script');
+    panel.src = SCRIPT_SRC.replace('seafloor-row.js', 'seafloor-tune.js');
+    panel.defer = true;
+    document.head.appendChild(panel);
+  }
 
   init();
   window.addEventListener('resize', measure);
