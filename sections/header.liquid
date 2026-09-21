@@ -132,25 +132,11 @@
      The lockup's own height is pinned to the mark's height (not auto/content), so the
      wordmark's taller line-box (font-size > mark height, at line-height:1) overflows
      visually instead of inflating the header's grid row and shifting the nav/icons. */
-  /* Mobile fit. The mobile grid is [menu | search | logo | account+cart]. Everything but
-     the logo is fixed width, so the logo gets whatever is left. --lurro-reserved is that
-     fixed part: 60 header padding + 32 menu + 44 search + 84 account/cart + 15 logo-link
-     padding + 1 slack. At full size (30px mark / 44px wordmark) the lockup is 225px wide,
-     so below ~461px viewport width it scales down proportionally (mark 30, wordmark 44 and
-     gap 10 all scale by fit/225) instead of pushing the account and cart off-screen.
-     From 461px up the min() caps keep the original 30/44/10 values. If the header's icon
-     set changes, adjust --lurro-reserved. 100vw includes a classic scrollbar, which does not
-     exist on phones. */
   .lurro-lockup {
-    --lurro-reserved: 236px;
-    --lurro-fit: calc(100vw - var(--lurro-reserved));
-    --lurro-mark-h: min(30px, calc(var(--lurro-fit) * 0.1333));
-    --lurro-word-fs: min(44px, calc(var(--lurro-fit) * 0.1956));
-
     display: inline-flex;
     align-items: center;
-    gap: min(10px, calc(var(--lurro-fit) * 0.0444));
-    height: var(--lurro-mark-h);
+    gap: 10px;
+    height: 30px;
     color: rgb(var(--color-foreground));
   }
 
@@ -162,7 +148,7 @@
   .lurro-lockup__mark svg {
     display: block;
     width: auto;
-    height: var(--lurro-mark-h);
+    height: 30px;
   }
 
   .lurro-lockup__word {
@@ -170,15 +156,30 @@
     font-family: var(--font-heading-family);
     font-weight: var(--font-heading-weight);
     font-style: var(--font-heading-style);
-    font-size: var(--lurro-word-fs);
+    font-size: 44px;
     line-height: 1;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    transform: translateY(calc(var(--lurro-word-fs) * 0.0455));
+    transform: translateY(2px);
     white-space: nowrap;
   }
 
-  /* Scaling the lockup down must not shrink the tap target below 44px. */
+  /* Below 461px the mobile grid [menu | search | logo | account+cart] has only ~140px
+     left for the logo (60 header padding + 32 menu + 44 search + 84 account/cart + 15 link
+     padding are fixed), and the full lockup is 225px wide. Rather than shrinking the
+     wordmark to an unreadable size, show the mark alone at its full 30px. The link's
+     aria-label ("Lurro") is unchanged, so the accessible name is the same either way. */
+  @media screen and (max-width: 460px) {
+    .lurro-lockup {
+      gap: 0;
+    }
+
+    .lurro-lockup__word {
+      display: none;
+    }
+  }
+
+  /* Keep the tap target at 44px tall whatever the lockup's own height. */
   @media screen and (max-width: 749px) {
     .header__heading-link {
       display: flex;
