@@ -67,7 +67,10 @@
   object-position: center bottom;
 }
 
-.seafloor__water {
+/* Scoped under .seafloor so it outranks Dawn's global div:empty { display: none }
+   (base.css). The water is legitimately empty when no heading/subline is set, and
+   it must still occupy grid row 1 so the row rests in the lower part of the frame. */
+.seafloor .seafloor__water {
   display: grid;
   align-content: center;
   justify-items: center;
