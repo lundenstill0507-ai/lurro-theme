@@ -1,5 +1,6 @@
 {{ 'component-price.css' | asset_url | stylesheet_tag }}
 {{ 'seafloor-row.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'seafloor-row.js' | asset_url }}" defer="defer"></script>
 
 {%- liquid
   assign collection = section.settings.collection

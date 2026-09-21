@@ -1,4 +1,6 @@
 .seafloor {
+  /* No-JS fallback only. seafloor-row.js overwrites this inline with the measured
+     height of everything above the frame, so it is exactly 100svh at every width. */
   --seafloor-chrome: 12rem;
   --seafloor-gutter: 2.4rem;
   --seafloor-gap: 2.4rem;
