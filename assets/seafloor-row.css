@@ -7,6 +7,12 @@
   --seafloor-visible: 1.5;
   --seafloor-gaps: 1;
   --seafloor-ratio: 4 / 5;
+  /* width / height of --seafloor-ratio; the height budget below converts with it. */
+  --seafloor-ratio-w: 0.8;
+  /* The quiet zone (water above the row) keeps at least this share of the frame, and
+     pieces never go below this width. When both cannot hold, the piece floor wins. */
+  --seafloor-quiet-min: 0.4;
+  --seafloor-piece-min: 16rem;
   --seafloor-horizon: 68%;
   --seafloor-sand: color-mix(in srgb, var(--sand-beige) 35%, var(--deep-ocean));
 
@@ -36,6 +42,15 @@
     --seafloor-offset: min(
       var(--seafloor-row-offset, 4.8rem),
       max(2.4rem, calc(var(--seafloor-frame-h) * 0.05))
+    );
+    /* Everything in the stage that is not the piece image: row padding (0.8rem x 2) +
+       caption (1.6rem top padding + 4.8rem title + 2.4rem meta) + 1rem for the row's
+       horizontal scrollbar (classic scrollbars take ~10px inside the row; overlay
+       scrollbars take none, which just leaves a few px of extra quiet zone) + the sand. */
+    --seafloor-fixed: calc(1.6rem + 8.8rem + 1rem + var(--seafloor-offset));
+    /* Widest piece whose stage still leaves the quiet zone its minimum share. */
+    --seafloor-piece-cap: calc(
+      (var(--seafloor-frame-h) * (1 - var(--seafloor-quiet-min)) - var(--seafloor-fixed)) * var(--seafloor-ratio-w)
     );
   }
 }
@@ -124,12 +139,14 @@
 }
 
 .seafloor__row {
-  --slot-w: calc(
+  --slot-w-fit: calc(
     (100cqw - var(--seafloor-gutter) - var(--seafloor-gaps) * var(--seafloor-gap)) / var(--seafloor-visible)
   );
+  --slot-w: var(--slot-w-fit);
+  --row-gap: var(--seafloor-gap);
 
   display: flex;
-  gap: var(--seafloor-gap);
+  gap: var(--row-gap);
   margin: 0;
   padding: 0.8rem var(--seafloor-gutter);
   list-style: none;
@@ -139,6 +156,20 @@
   scroll-padding-inline: var(--seafloor-gutter);
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--color-foreground), 0.5) transparent;
+}
+
+/* Pieces never grow past the width-derived size, and shrink to the height cap (never below
+   the piece floor). The visible count stays as set by the breakpoints, so instead of
+   packing more, smaller pieces in, the width the pieces gave up is absorbed into the gaps:
+   gap = (row width - gutter - visible * piece) / full gaps. That keeps the half-piece at
+   the right edge exactly half a piece at every size. */
+@supports (height: 100svh) {
+  .seafloor__row {
+    --slot-w: min(var(--slot-w-fit), max(var(--seafloor-piece-min), var(--seafloor-piece-cap)));
+    --row-gap: calc(
+      (100cqw - var(--seafloor-gutter) - var(--seafloor-visible) * var(--slot-w)) / var(--seafloor-gaps)
+    );
+  }
 }
 
 .seafloor-slot {
