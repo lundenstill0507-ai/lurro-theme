@@ -19,8 +19,10 @@
   assign slot_sizes = '(min-width: 1200px) calc((100vw - 240px) / 4.5), (min-width: 990px) calc((100vw - 144px) / 3.5), (min-width: 750px) calc((100vw - 112px) / 2.5), (min-width: 560px) calc((100vw - 72px) / 2.5), calc((100vw - 48px) / 1.5)'
 -%}
 
-<div class="color-{{ section.settings.color_scheme }}">
+<div class="seafloor-scene color-{{ section.settings.color_scheme }}" data-seafloor-scene>
   <div class="seafloor" style="--seafloor-row-offset: {{ row_offset_rem }}rem;">
+    <a class="seafloor__skip" href="#SeafloorEnd-{{ section.id }}">Skip the seafloor</a>
+
     {%- if plate_desktop != blank -%}
       <picture class="seafloor__plate">
         <source
@@ -116,6 +118,7 @@
     </div>
   </div>
 </div>
+<span id="SeafloorEnd-{{ section.id }}" class="seafloor__end" tabindex="-1"></span>
 
 {% schema %}
 {

@@ -85,6 +85,38 @@
   }
 }
 
+/* Skip link: first focusable thing in the scene, hidden until it takes focus. It jumps
+   past the whole row (and, once the row is pinned, past the tall scroll range). */
+.seafloor__skip {
+  position: absolute;
+  top: 1.6rem;
+  left: var(--seafloor-gutter);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  min-height: 4.4rem;
+  padding: 0 2.4rem;
+  color: rgb(var(--color-background));
+  background: rgb(var(--color-foreground));
+  font-size: 1.6rem;
+  text-decoration: none;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.seafloor__skip:focus-visible {
+  clip-path: none;
+  outline: 0.2rem solid rgb(var(--color-background));
+  outline-offset: -0.4rem;
+}
+
+/* Zero-height target for the skip link (a <span>, so Dawn's div:empty reset ignores it). */
+.seafloor__end {
+  display: block;
+  height: 0;
+}
+
 .seafloor__plate {
   position: absolute;
   inset: 0;
