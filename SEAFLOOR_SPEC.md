@@ -143,7 +143,7 @@ Stages 1 and 2 can be built now with placeholder imagery. Stages 3 and 4 need re
 
 ## 9. Open questions
 
-- Does the row loop endlessly or have a defined start and end? Leaning toward a defined end with the environmental anchor at the start.
+- ~~Does the row loop endlessly or have a defined start and end?~~ **Resolved (stage 3): defined end.** The row stops at its last piece and the pin then holds for a short end dwell (a quarter of the frame's height of extra scroll) before the page scrolls on. A loop was rejected: it needs cloned slots (duplicate links and tab stops) and would have to teleport the scroll position, which is a visible snap.
 - Do collections get separate seafloors, or does one row hold everything with filtering?
 - What happens on the collection and search pages — do they use the scene, or standard Shopify layouts?
 

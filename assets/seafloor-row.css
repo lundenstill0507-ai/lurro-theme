@@ -117,6 +117,24 @@
   height: 0;
 }
 
+/* Scroll-linked mode. Everything here is keyed on the class seafloor-row.js adds as the
+   LAST step of init; without JS, or after any error, none of it applies and the row is the
+   plain native strip above. The scene grows tall (--seafloor-scene-h, set by JS from the
+   row's travel), the frame sticks just below the header for the length of that runway, and
+   the page's scroll position drives the row's scrollLeft. */
+.seafloor-scene--enhanced {
+  height: var(--seafloor-scene-h);
+}
+
+.seafloor-scene--enhanced .seafloor {
+  position: sticky;
+  top: var(--seafloor-pin-top, var(--seafloor-chrome));
+}
+
+.seafloor-scene--enhanced .seafloor__row {
+  overflow-x: hidden;
+}
+
 .seafloor__plate {
   position: absolute;
   inset: 0;

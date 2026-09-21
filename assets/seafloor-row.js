@@ -27,10 +27,22 @@
   const CONFIG = {
     // Below this many pieces there is nothing worth pinning for; the row stays a plain strip.
     minPieces: 5,
+    // ...and below this much horizontal travel there is nothing to scroll through.
+    minTravel: 8,
+    // Vertical px of page scroll per horizontal px of row travel. Above 1 is slower and more
+    // deliberate, and it sets how tall the page gets (runway = travel * ratio).
+    ratio: 1.2,
+    // Extra pinned scroll before the row starts moving / after it reaches its end, as a
+    // fraction of the frame's height. The end dwell is what makes the exit unhurried; the
+    // start dwell only matters if the scene is not at the very top of the page.
+    dwellStart: 0,
+    dwellEnd: 0.25,
   };
 
   const controllers = [];
   let resizeObserver = null;
+
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
   // ---------------------------------------------------------------------------
   // Fail-safe plumbing
@@ -78,6 +90,11 @@
       const anchor = frame.closest(SCENE) || frame;
       const chrome = anchor.getBoundingClientRect().top + window.scrollY;
       frame.style.setProperty('--seafloor-chrome', `${chrome.toFixed(3)}px`);
+
+      // Where the pinned frame sits: directly below the (always-visible) header.
+      const header = document.querySelector('.section-header');
+      const pinTop = header ? header.offsetHeight : chrome;
+      frame.style.setProperty('--seafloor-pin-top', `${pinTop}px`);
     });
   };
 
@@ -103,6 +120,14 @@
     const slot = event.target.closest && event.target.closest(SLOT);
     const row = slot && slot.closest(ROW);
     if (!row) return;
+
+    // In scroll-linked mode the page scroll owns the row's position, so focus is turned into
+    // a page scroll instead (see moveToSlot). Only the plain strip scrolls the row directly.
+    const ctl = controllers.find((c) => c.row === row);
+    if (ctl && ctl.mode === 'enhanced' && ctl.onFocus) {
+      ctl.onFocus(slot);
+      return;
+    }
 
     revealSlot(row, slot);
     // The browser may run its own focus scroll after this event; check again once it has.
@@ -151,6 +176,59 @@
       }
     }
     ctl.scene.style.removeProperty('--seafloor-scene-h');
+    ctl.onFocus = null;
+    ctl.sync = null;
+    ctl.geo = null;
+  };
+
+  // Pin geometry. The scene is a tall runway; the frame is pinned for `pinLen` px of page
+  // scroll, starting when the scene's top reaches the pin line (S0) and ending at S1. The row
+  // moves only inside that window; before it the row is at its start, after it at its end.
+  const refreshGeometry = (ctl) => {
+    const { scene, frame, row } = ctl;
+    const travel = Math.max(0, row.scrollWidth - row.clientWidth);
+    const frameH = frame.offsetHeight;
+    const dwellStartPx = CONFIG.dwellStart * frameH;
+    const dwellEndPx = CONFIG.dwellEnd * frameH;
+    const pinLen = dwellStartPx + travel * CONFIG.ratio + dwellEndPx;
+    const sceneTop = scene.getBoundingClientRect().top + window.scrollY;
+    const pinTop = parseFloat(frame.style.getPropertyValue('--seafloor-pin-top')) || 0;
+    const S0 = sceneTop - pinTop;
+
+    ctl.geo = { travel, frameH, dwellStartPx, dwellEndPx, pinLen, S0, S1: S0 + pinLen };
+    scene.style.setProperty('--seafloor-scene-h', `${(frameH + pinLen).toFixed(2)}px`);
+  };
+
+  // Page scroll position -> row travel in px, clamped to the row's ends.
+  const travelForScroll = (ctl, y) =>
+    clamp((y - ctl.geo.S0 - ctl.geo.dwellStartPx) / CONFIG.ratio, 0, ctl.geo.travel);
+
+  // Row travel in px -> page scroll position (the inverse of the above).
+  const scrollForTravel = (ctl, travel) =>
+    ctl.geo.S0 + ctl.geo.dwellStartPx + travel * CONFIG.ratio;
+
+  // Where the row has to be for `slot` to sit fully inside it (honoring scroll-padding),
+  // starting from where it is now. Measured in content space, so it does not matter where
+  // the browser's own focus scroll has left scrollLeft.
+  const travelToReveal = (ctl, slot) => {
+    const { row, geo } = ctl;
+    const rowRect = row.getBoundingClientRect();
+    const slotRect = slot.getBoundingClientRect();
+    const style = window.getComputedStyle(row);
+    const padLeft = parseFloat(style.scrollPaddingLeft) || 0;
+    const padRight = parseFloat(style.scrollPaddingRight) || 0;
+    const slotLeft = slotRect.left - rowRect.left + row.scrollLeft;
+    const slotRight = slotLeft + slotRect.width;
+    const view = row.clientWidth;
+    const now = ctl.pos;
+
+    let want = now;
+    if (slotRect.width >= view - padLeft - padRight || slotLeft < now + padLeft) {
+      want = slotLeft - padLeft;
+    } else if (slotRight > now + view - padRight) {
+      want = slotRight - (view - padRight);
+    }
+    return clamp(want, 0, geo.travel);
   };
 
   const enhance = (ctl) => {
@@ -164,13 +242,63 @@
     }
 
     guard(ctl, 'enhance', () => {
-      // (Later steps wire geometry, the scroll mapping and input handling here.)
+      refreshGeometry(ctl);
+      if (ctl.geo.travel < CONFIG.minTravel) {
+        ctl.scene.style.removeProperty('--seafloor-scene-h');
+        ctl.scene.setAttribute('data-seafloor-mode', 'strip');
+        ctl.scene.setAttribute('data-seafloor-reason', 'no-travel');
+        return;
+      }
 
-      // Last step: only now does the scene claim to be enhanced.
+      ctl.pos = 0;
+
+      ctl.sync = () => {
+        ctl.pos = travelForScroll(ctl, window.scrollY);
+        ctl.row.scrollLeft = ctl.pos;
+      };
+
+      // Focus becomes a page scroll: the page scroll owns the row's position, so moving to a
+      // slot means scrolling the page to where that slot is fully visible. The browser's own
+      // focus scroll may already have nudged scrollLeft, which sync() then puts right.
+      ctl.onFocus = guard(ctl, 'focus', (slot) => {
+        const want = travelToReveal(ctl, slot);
+        if (Math.abs(want - ctl.pos) > 0.5) {
+          window.scrollTo({ top: scrollForTravel(ctl, want), behavior: 'instant' });
+        }
+        ctl.sync();
+        window.setTimeout(
+          guard(ctl, 'focus', () => {
+            if (ctl.sync) ctl.sync();
+          }),
+          0
+        );
+      });
+
+      const onScroll = guard(ctl, 'scroll', () => ctl.sync());
+      const onLayout = guard(ctl, 'layout', () => {
+        // fonts.ready cannot be unsubscribed, so this must be inert after teardown.
+        if (ctl.mode !== 'enhanced') return;
+        refreshGeometry(ctl);
+        ctl.sync();
+      });
+
+      listen(ctl, window, 'scroll', onScroll, { passive: true });
+      listen(ctl, window, 'resize', onLayout);
+      listen(ctl, window, 'load', onLayout);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(onLayout);
+
+      const rowObserver = new ResizeObserver(onLayout);
+      rowObserver.observe(ctl.row);
+      ctl.cleanups.push(() => rowObserver.disconnect());
+
+      // Last step: only now does the scene claim to be enhanced. Applying the class changes
+      // layout (overflow, sticky), so measure once more and put the row where the page says.
       ctl.mode = 'enhanced';
       ctl.scene.removeAttribute('data-seafloor-reason');
       ctl.scene.setAttribute('data-seafloor-mode', 'enhanced');
       ctl.scene.classList.add(ENHANCED_CLASS);
+      refreshGeometry(ctl);
+      ctl.sync();
     })();
   };
 
