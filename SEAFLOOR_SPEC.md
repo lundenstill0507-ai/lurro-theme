@@ -67,6 +67,8 @@ Mobile is not a crop of desktop. It is composed separately.
 - Motion is **weighted and slightly slow**. Smooth easing, no bounce, no snap, no elastic overshoot. This single quality is what separates expensive from cheap — get it right before anything else.
 - Momentum decays naturally. Never abrupt stops.
 - Must work with trackpad, mouse wheel, and touch. Keyboard arrows and Tab must also move between pieces.
+- **Decided at stage 3 — touch also pans horizontally.** On a phone, a horizontal swipe on the frame moves along the row, as well as the usual vertical scroll. This goes beyond "vertical scroll input maps to horizontal travel" because a swipe sideways along a row of pieces is what people reach for first. Both share one mapping (finger travel × ratio becomes page scroll), a release coasts on and eases to a stop, and it never coasts past either end. A short "Scroll or swipe to explore" cue sits in the water until the row first moves.
+- **Decided at stage 3 — keys.** Tab moves piece to piece; Left/Right also move focus one piece at a time. The page scrolls to keep the focused piece fully in view and the row glides there. A "Skip the seafloor" link is the first stop, and End jumps to the page's end.
 
 ### Clicking a piece
 

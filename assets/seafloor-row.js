@@ -51,7 +51,21 @@
     // Carry the fraction of a pixel that scrollLeft cannot hold (it rounds to whole px) as a
     // transform on the slots, so the slow tail of the ease stays smooth on 1x screens.
     subpixel: true,
+
+    // --- Touch ---------------------------------------------------------------
+    // Finger travel (px) before a touch counts as a horizontal drag, not a tap.
+    dragSlop: 8,
+    // After a drag ends the row coasts on for (release speed x flingTime) px, glided in by the
+    // follower. Seconds; bigger coasts further. It never coasts past either end.
+    flingTime: 0.3,
+    // Slower releases than this (px/s) just stop where they are.
+    flingMinSpeed: 150,
+    // Longest coast, in slot-widths, so one flick cannot cross the whole row.
+    flingMaxSlots: 4,
   };
+
+  // Once the row has travelled this far (px) the scroll cue has done its job.
+  const CUE_DISMISS_DISTANCE = 16;
 
   // The follower is at rest when it is this close to (px) and this slow relative to (px/s)
   // its target; then the animation loop stops.
@@ -200,6 +214,8 @@
       }
     }
     ctl.scene.style.removeProperty('--seafloor-scene-h');
+    ctl.scene.removeAttribute('data-seafloor-cue');
+    ctl.cueGone = false;
     ctl.onFocus = null;
     ctl.sync = null;
     ctl.jump = null;
@@ -241,6 +257,10 @@
   const writeRow = (ctl, x) => {
     const whole = Math.round(x);
     ctl.row.scrollLeft = whole;
+    if (!ctl.cueGone && x > CUE_DISMISS_DISTANCE) {
+      ctl.cueGone = true;
+      ctl.scene.setAttribute('data-seafloor-cue', 'gone');
+    }
     if (CONFIG.subpixel) {
       ctl.row.style.setProperty('--seafloor-frac', `${(whole - x).toFixed(3)}px`);
     } else {
@@ -468,6 +488,98 @@
         if (link) link.focus({ preventScroll: true });
       });
       listen(ctl, ctl.row, 'keydown', onRowKey);
+
+      // Touch: a horizontal drag anywhere in the frame moves the page scroll (and so the row)
+      // by the finger's travel x ratio, so touch, wheel and keys all share one mapping. The
+      // stylesheet gives the frame touch-action: pan-y, so vertical swipes stay the browser's
+      // own scroll (it cancels our pointer stream when it takes over) and only horizontal
+      // drags arrive here. Coasting after release is a scroll target, so the same follower
+      // that eases every other input eases this one: no separate momentum loop, no overshoot.
+      let drag = null;
+      let suppressClickUntil = 0;
+
+      const pinnedNow = () => window.scrollY >= ctl.geo.S0 - 1 && window.scrollY <= ctl.geo.S1;
+      const dragScroll = (startY, dx) => {
+        const lo = ctl.geo.S0 + ctl.geo.dwellStartPx;
+        const hi = Math.max(ctl.geo.S1 - ctl.geo.dwellEndPx, startY);
+        return clamp(startY - dx * CONFIG.ratio, lo, hi);
+      };
+
+      const onTouchDown = guard(ctl, 'touch-down', (event) => {
+        if (event.pointerType !== 'touch' || !event.isPrimary || !pinnedNow()) return;
+        // A finger landing on a moving row stops it, as it would a native scroll.
+        if (Math.abs(ctl.target - ctl.pos) > 0.5 || Math.abs(ctl.vel) > REST_VELOCITY) {
+          window.scrollTo({ top: scrollForTravel(ctl, ctl.pos), behavior: 'instant' });
+          ctl.vel = 0;
+        }
+        drag = {
+          id: event.pointerId,
+          x: event.clientX,
+          startY: window.scrollY,
+          active: false,
+          samples: [[event.timeStamp, event.clientX]],
+        };
+      });
+
+      const onTouchMove = guard(ctl, 'touch-move', (event) => {
+        if (!drag || event.pointerId !== drag.id) return;
+        const dx = event.clientX - drag.x;
+        if (!drag.active) {
+          if (Math.abs(dx) < CONFIG.dragSlop) return;
+          drag.active = true;
+        }
+        ctl.input = 'touch';
+        drag.samples.push([event.timeStamp, event.clientX]);
+        if (drag.samples.length > 12) drag.samples.shift();
+        window.scrollTo({ top: dragScroll(drag.startY, dx), behavior: 'instant' });
+        ctl.wake();
+      });
+
+      const onTouchUp = guard(ctl, 'touch-up', (event) => {
+        if (!drag || event.pointerId !== drag.id) return;
+        const finished = drag;
+        drag = null;
+        if (!finished.active) return;
+
+        // The click that follows a drag that began on a piece is not a tap on that piece.
+        suppressClickUntil = performance.now() + 350;
+        if (event.type === 'pointercancel') return;
+
+        // Release speed over the last 100ms before the finger lifted (px/s, finger direction).
+        // A finger that paused before lifting leaves too few recent samples, and does not fling.
+        const recent = finished.samples.filter((sample) => event.timeStamp - sample[0] <= 100);
+        if (recent.length < 2) return;
+        const first = recent[0];
+        const last = recent[recent.length - 1];
+        const elapsed = (last[0] - first[0]) / 1000;
+        const speed = elapsed > 0 ? (last[1] - first[1]) / elapsed : 0;
+        if (Math.abs(speed) < CONFIG.flingMinSpeed) return;
+
+        const reach = clamp(
+          speed * CONFIG.flingTime,
+          -CONFIG.flingMaxSlots * ctl.geo.slotStep,
+          CONFIG.flingMaxSlots * ctl.geo.slotStep
+        );
+        // Coast on from where the finger left the scroll (the row itself is still catching up).
+        // Released inside the end dwell there is nowhere further to go, so leave it there.
+        if (window.scrollY > scrollForTravel(ctl, ctl.geo.travel) + 1) return;
+        const travel = clamp(travelForScroll(ctl, window.scrollY) - reach, 0, ctl.geo.travel);
+        window.scrollTo({ top: scrollForTravel(ctl, travel), behavior: 'instant' });
+        ctl.wake();
+      });
+
+      const onClickCapture = guard(ctl, 'touch-click', (event) => {
+        if (performance.now() < suppressClickUntil) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      });
+
+      listen(ctl, ctl.frame, 'pointerdown', onTouchDown, { passive: true });
+      listen(ctl, ctl.frame, 'pointermove', onTouchMove, { passive: true });
+      listen(ctl, ctl.frame, 'pointerup', onTouchUp, { passive: true });
+      listen(ctl, ctl.frame, 'pointercancel', onTouchUp, { passive: true });
+      listen(ctl, ctl.frame, 'click', onClickCapture, true);
 
       const onScroll = guard(ctl, 'scroll', () => ctl.wake());
       const onLayout = guard(ctl, 'layout', () => {
