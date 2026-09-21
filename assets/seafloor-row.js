@@ -358,7 +358,7 @@
 
       // Put the row exactly where the page says, with no easing. Used when the position must
       // not glide: first paint (including a reload or back navigation that restores the
-      // scroll position), resize, and focus (until the follower takes over that, in step 4).
+      // scroll position) and resize.
       ctl.jump = () => {
         const target = travelForScroll(ctl, window.scrollY);
         ctl.target = target;
@@ -433,21 +433,41 @@
       };
 
       // Focus becomes a page scroll: the page scroll owns the row's position, so moving to a
-      // slot means scrolling the page to where that slot is fully visible. The browser's own
-      // focus scroll may already have nudged scrollLeft, which jump() then puts right.
+      // slot means scrolling the page to where that slot is fully visible, and the follower
+      // glides the row there like any other scroll. The browser's own focus scroll has
+      // already snapped scrollLeft by the time this runs (before paint), so put the row back
+      // where the follower has it, or the glide would start from the snapped position.
+      const holdRow = () => writeRow(ctl, ctl.pos);
       ctl.onFocus = guard(ctl, 'focus', (slot) => {
         const want = travelToReveal(ctl, slot);
+        ctl.input = 'wheel';
+        ctl.inputVotes = 0;
         if (Math.abs(want - ctl.pos) > 0.5) {
           window.scrollTo({ top: scrollForTravel(ctl, want), behavior: 'instant' });
         }
-        ctl.jump();
+        holdRow();
+        ctl.wake();
         window.setTimeout(
           guard(ctl, 'focus', () => {
-            if (ctl.jump) ctl.jump();
+            if (ctl.mode === 'enhanced' && !ctl.degraded) holdRow();
           }),
           0
         );
       });
+
+      // Left and Right move focus one piece at a time; the focus handler above does the
+      // scrolling. Modified arrows are left to the browser (Alt+Left is Back).
+      const onRowKey = guard(ctl, 'arrows', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        const slot = event.target.closest && event.target.closest(SLOT);
+        if (!slot) return;
+        event.preventDefault();
+        const next = event.key === 'ArrowRight' ? slot.nextElementSibling : slot.previousElementSibling;
+        const link = next && next.querySelector('a[href]');
+        if (link) link.focus({ preventScroll: true });
+      });
+      listen(ctl, ctl.row, 'keydown', onRowKey);
 
       const onScroll = guard(ctl, 'scroll', () => ctl.wake());
       const onLayout = guard(ctl, 'layout', () => {
