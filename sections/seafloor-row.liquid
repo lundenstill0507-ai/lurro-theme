@@ -15,8 +15,15 @@
 
   comment
     Slot width math lives in seafloor-row.css; keep this sizes string in step with it.
+    A piece is as wide as the width budget allows (viewport minus gutters and gaps, divided
+    by the pieces in view), but never wider than the height budget: the frame's height less
+    the quiet zone, the captions and the sand, times the 4:5 ratio, and never under 160px.
+    The height cap below is deliberately a little generous (it assumes a 56px header and
+    the smallest sand space), so the browser may fetch slightly more than it needs but
+    never less. Widths are the width budget at each breakpoint.
   endcomment
-  assign slot_sizes = '(min-width: 1200px) calc((100vw - 240px) / 4.5), (min-width: 990px) calc((100vw - 144px) / 3.5), (min-width: 750px) calc((100vw - 112px) / 2.5), (min-width: 560px) calc((100vw - 72px) / 2.5), calc((100vw - 48px) / 1.5)'
+  assign height_cap = 'max(160px, calc(48vh - 137px))'
+  assign slot_sizes = '(min-width: 1200px) min(calc((100vw - 240px) / 4.5), ' | append: height_cap | append: '), (min-width: 990px) min(calc((100vw - 144px) / 3.5), ' | append: height_cap | append: '), (min-width: 750px) min(calc((100vw - 112px) / 2.5), ' | append: height_cap | append: '), (min-width: 560px) min(calc((100vw - 72px) / 2.5), ' | append: height_cap | append: '), min(calc((100vw - 48px) / 1.5), ' | append: height_cap | append: ')'
 -%}
 
 <div class="seafloor-scene color-{{ section.settings.color_scheme }}" data-seafloor-scene>
