@@ -1,3 +1,14 @@
+{%- comment -%}
+  On the homepage the header is always visible: the seafloor frame pins directly below it and
+  is sized as 100svh minus the header, so the header must not slide away on scroll-down.
+  Every other template keeps the section's own sticky setting.
+{%- endcomment -%}
+{%- liquid
+  assign sticky_header_type = section.settings.sticky_header_type
+  if request.page_type == 'index'
+    assign sticky_header_type = 'always'
+  endif
+-%}
 <link rel="stylesheet" href="{{ 'component-list-menu.css' | asset_url }}" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="{{ 'component-search.css' | asset_url }}" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="{{ 'component-menu-drawer.css' | asset_url }}" media="print" onload="this.media='all'">
@@ -22,7 +33,7 @@
     margin-left: -1.2rem;
   }
 
-  {%- if section.settings.sticky_header_type == 'reduce-logo-size' -%}
+  {%- if sticky_header_type == 'reduce-logo-size' -%}
     .scrolled-past-header .header__heading-logo-wrapper {
       width: 75%;
     }
@@ -218,7 +229,7 @@
 {% liquid
   assign header_tag = 'div'
 
-  if section.settings.sticky_header_type != 'none'
+  if sticky_header_type != 'none'
     assign header_tag = 'sticky-header'
   endif
 
@@ -230,7 +241,7 @@
 
 <{{ header_tag }}
   {% if header_tag == 'sticky-header' %}
-    data-sticky-type="{{ section.settings.sticky_header_type }}"
+    data-sticky-type="{{ sticky_header_type }}"
   {% endif %}
   class="header-wrapper color-{{ section.settings.color_scheme }} gradient{% if section.settings.show_line_separator %} header-wrapper--border-bottom{% endif %}"
 >

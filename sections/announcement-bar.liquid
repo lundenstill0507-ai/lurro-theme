@@ -1,3 +1,8 @@
+{%- comment -%}
+  The homepage is the seafloor scene, an environment rather than a sales page, so the
+  announcement bar renders nothing there. Every other template is unchanged.
+{%- endcomment -%}
+{%- unless request.page_type == 'index' -%}
 {{ 'component-slideshow.css' | asset_url | stylesheet_tag }}
 {{ 'component-slider.css' | asset_url | stylesheet_tag }}
 
@@ -161,6 +166,7 @@
     </div>
   </div>
 </div>
+{%- endunless -%}
 
 {% schema %}
 {
