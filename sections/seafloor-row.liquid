@@ -1,0 +1,209 @@
+{{ 'component-price.css' | asset_url | stylesheet_tag }}
+{{ 'seafloor-row.css' | asset_url | stylesheet_tag }}
+
+{%- liquid
+  assign collection = section.settings.collection
+  assign show_products = false
+  if collection != blank and collection.products_count > 0
+    assign show_products = true
+  endif
+
+  assign plate_desktop = section.settings.plate_desktop | default: section.settings.plate_mobile
+  assign plate_mobile = section.settings.plate_mobile | default: section.settings.plate_desktop
+  assign row_offset_rem = section.settings.row_offset | divided_by: 10.0
+
+  comment
+    Slot width math lives in seafloor-row.css; keep this sizes string in step with it.
+  endcomment
+  assign slot_sizes = '(min-width: 1200px) calc((100vw - 240px) / 4.5), (min-width: 990px) calc((100vw - 144px) / 3.5), (min-width: 750px) calc((100vw - 112px) / 2.5), (min-width: 560px) calc((100vw - 72px) / 2.5), calc((100vw - 48px) / 1.5)'
+-%}
+
+<div class="color-{{ section.settings.color_scheme }}">
+  <div class="seafloor" style="--seafloor-row-offset: {{ row_offset_rem }}rem;">
+    {%- if plate_desktop != blank -%}
+      <picture class="seafloor__plate">
+        <source
+          media="(min-width: 750px)"
+          srcset="{% render 'seafloor-srcset', image: plate_desktop, widths: '1200,1600,2000,2400' %}"
+          sizes="100vw"
+        >
+        <img
+          src="{{ plate_mobile | image_url: width: 750 }}"
+          srcset="{% render 'seafloor-srcset', image: plate_mobile, widths: '480,750,960,1200' %}"
+          sizes="100vw"
+          alt=""
+          width="{{ plate_mobile.width }}"
+          height="{{ plate_mobile.height }}"
+          loading="eager"
+          fetchpriority="high"
+        >
+      </picture>
+    {%- endif -%}
+
+    <div class="seafloor__water">
+      {%- if section.settings.heading != blank or section.settings.subline != blank -%}
+        <div class="seafloor__water-inner">
+          {%- if section.settings.heading != blank -%}
+            <h2 class="seafloor__heading">{{ section.settings.heading | escape }}</h2>
+          {%- endif -%}
+          {%- if section.settings.subline != blank -%}
+            <p class="seafloor__subline">{{ section.settings.subline | escape }}</p>
+          {%- endif -%}
+        </div>
+      {%- endif -%}
+    </div>
+
+    <div class="seafloor__stage">
+      {%- if show_products -%}
+        <ul class="seafloor__row" role="list" aria-label="{{ collection.title | escape }}">
+          {%- for product in collection.products limit: section.settings.products_to_show -%}
+            {%- assign media = product.featured_media -%}
+            <li class="seafloor-slot">
+              <span class="seafloor-slot__media{% unless media %} seafloor-slot__media--empty{% endunless %}">
+                {%- if media -%}
+                  <img
+                    class="seafloor-slot__image"
+                    src="{{ media | image_url: width: 480 }}"
+                    srcset="{% render 'seafloor-srcset', image: media, widths: '240,360,480,640,800,1000' %}"
+                    sizes="{{ slot_sizes }}"
+                    alt="{{ media.alt | default: product.title | escape }}"
+                    width="{{ media.width }}"
+                    height="{{ media.height }}"
+                    {% if forloop.index > 2 %}
+                      loading="lazy"
+                    {% endif %}
+                  >
+                {%- endif -%}
+              </span>
+              <div class="seafloor-slot__caption">
+                <h3 class="seafloor-slot__title">
+                  <a
+                    class="seafloor-slot__link"
+                    href="{{ product.url }}"
+                    {% unless product.available %}
+                      aria-describedby="SeafloorStatus-{{ section.id }}-{{ product.id }}"
+                    {% endunless %}
+                  >
+                    {{- product.title | escape -}}
+                  </a>
+                </h3>
+                <div class="seafloor-slot__meta">
+                  {% render 'price', product: product, price_class: '' %}
+                  {%- unless product.available -%}
+                    <span class="seafloor-slot__status" id="SeafloorStatus-{{ section.id }}-{{ product.id }}">
+                      {{- 'products.product.sold_out' | t -}}
+                    </span>
+                  {%- endunless -%}
+                </div>
+              </div>
+            </li>
+          {%- endfor -%}
+        </ul>
+      {%- elsif section.settings.preview_slots > 0 -%}
+        <ul class="seafloor__row" role="list" aria-hidden="true">
+          {%- for i in (1..section.settings.preview_slots) -%}
+            <li class="seafloor-slot seafloor-slot--empty">
+              <span class="seafloor-slot__media seafloor-slot__media--empty"></span>
+              <div class="seafloor-slot__caption">
+                <span class="seafloor-slot__title"></span>
+                <span class="seafloor-slot__meta"></span>
+              </div>
+            </li>
+          {%- endfor -%}
+        </ul>
+      {%- endif -%}
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Seafloor row",
+  "tag": "section",
+  "class": "section",
+  "disabled_on": {
+    "groups": ["header", "footer"]
+  },
+  "settings": [
+    {
+      "type": "header",
+      "content": "Pieces"
+    },
+    {
+      "type": "collection",
+      "id": "collection",
+      "label": "Collection",
+      "info": "Row order follows the collection's manual sort."
+    },
+    {
+      "type": "range",
+      "id": "products_to_show",
+      "min": 2,
+      "max": 25,
+      "step": 1,
+      "default": 15,
+      "label": "Maximum pieces"
+    },
+    {
+      "type": "range",
+      "id": "preview_slots",
+      "min": 0,
+      "max": 20,
+      "step": 1,
+      "default": 0,
+      "label": "Empty preview slots",
+      "info": "Shown only while the collection has no visible pieces. Set to 0 before launch."
+    },
+    {
+      "type": "header",
+      "content": "Water"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading"
+    },
+    {
+      "type": "text",
+      "id": "subline",
+      "label": "Subheading"
+    },
+    {
+      "type": "header",
+      "content": "Frame"
+    },
+    {
+      "type": "image_picker",
+      "id": "plate_desktop",
+      "label": "Seafloor image, desktop (16:9)",
+      "info": "Leave empty to show the placeholder."
+    },
+    {
+      "type": "image_picker",
+      "id": "plate_mobile",
+      "label": "Seafloor image, mobile (9:16)"
+    },
+    {
+      "type": "range",
+      "id": "row_offset",
+      "min": 0,
+      "max": 160,
+      "step": 8,
+      "unit": "px",
+      "default": 48,
+      "label": "Space below captions"
+    },
+    {
+      "type": "color_scheme",
+      "id": "color_scheme",
+      "label": "Color scheme",
+      "default": "scheme-2"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Seafloor row"
+    }
+  ]
+}
+{% endschema %}

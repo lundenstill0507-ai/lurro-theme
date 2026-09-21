@@ -1,0 +1,19 @@
+{%- comment -%}
+  Builds a srcset value for an image, listing only widths smaller than the original.
+
+  Accepts:
+  - image: {Object} Image or media object
+  - widths: {String} Comma-separated target widths, e.g. '240,360,480'
+{%- endcomment -%}
+{%- liquid
+  assign width_list = widths | split: ','
+  for width_item in width_list
+    assign target_width = width_item | plus: 0
+    if image.width > target_width
+      echo image | image_url: width: target_width
+      echo ' ' | append: target_width | append: 'w, '
+    endif
+  endfor
+  echo image | image_url
+  echo ' ' | append: image.width | append: 'w'
+-%}

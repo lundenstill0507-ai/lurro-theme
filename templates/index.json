@@ -1,24 +1,17 @@
 {
   "sections": {
-    "image_banner": {
-      "type": "image-banner",
-      "blocks": {},
-      "block_order": [],
+    "seafloor": {
+      "type": "seafloor-row",
       "settings": {
-        "image_overlay_opacity": 0,
-        "image_height": "large",
-        "desktop_content_position": "bottom-center",
-        "show_text_box": false,
-        "image_behavior": "none",
-        "desktop_content_alignment": "center",
-        "color_scheme": "scheme-1",
-        "mobile_content_alignment": "center",
-        "stack_images_on_mobile": false,
-        "show_text_below": false
+        "collection": "seafloor",
+        "products_to_show": 15,
+        "preview_slots": 10,
+        "row_offset": 48,
+        "color_scheme": "scheme-2"
       }
     }
   },
   "order": [
-    "image_banner"
+    "seafloor"
   ]
 }
