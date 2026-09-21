@@ -50,7 +50,7 @@
     maxSpeedSlots: 6,
     // smoothTime multiplier by input device. Trackpads and touch already carry the OS's own
     // momentum, so they get less of ours; a mouse wheel arrives in steps and gets all of it.
-    inputScale: { wheel: 1, trackpad: 0.6, touch: 0.4 },
+    inputScale: { wheel: 1.15, trackpad: 0.6, touch: 0.65 },
     // Carry the fraction of a pixel that scrollLeft cannot hold (it rounds to whole px) as a
     // transform on the slots, so the slow tail of the ease stays smooth on 1x screens.
     subpixel: true,
