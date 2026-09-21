@@ -136,6 +136,7 @@ Stages 1 and 2 can be built now with placeholder imagery. Stages 3 and 4 need re
 ## 8. Accessibility
 
 - `prefers-reduced-motion` disables camera travel and rotation. The row becomes a standard scrollable grid.
+  - **Decided at stage 3 — a strip, not a grid.** For now the reduced-motion (and no-JavaScript, and too-few-pieces) fallback is the plain horizontal strip: the same row, natively scrollable and keyboard-reachable, with nothing pinned and no scroll-linked movement. A wrapped grid was not built; revisit when there is real photography to judge it on. The preference is followed live, so changing it while the page is open switches modes without a reload.
 - Every piece is reachable and openable by keyboard.
 - Every product image has real alt text describing the piece.
 - Product detail must be readable by a screen reader in a sensible order, independent of visual position in the water.

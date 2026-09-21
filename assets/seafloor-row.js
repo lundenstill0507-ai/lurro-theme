@@ -51,6 +51,9 @@
     // Carry the fraction of a pixel that scrollLeft cannot hold (it rounds to whole px) as a
     // transform on the slots, so the slow tail of the ease stays smooth on 1x screens.
     subpixel: true,
+    // For hand tuning only (set by the tuning panel): lets the scroll-linked mode run on a
+    // machine that asks for reduced motion. Never true for visitors.
+    ignoreReducedMotion: false,
 
     // --- Touch ---------------------------------------------------------------
     // Finger travel (px) before a touch counts as a horizontal drag, not a tap.
@@ -194,7 +197,9 @@
   const ineligibleReason = (ctl) => {
     if (!ctl.frame || !ctl.row) return 'missing-markup';
     if (!supported()) return 'unsupported';
-    if (window.matchMedia(REDUCED_MOTION).matches) return 'reduced-motion';
+    if (!CONFIG.ignoreReducedMotion && window.matchMedia(REDUCED_MOTION).matches) {
+      return 'reduced-motion';
+    }
     if (ctl.row.querySelectorAll(SLOT).length < CONFIG.minPieces) return 'few-pieces';
     return null;
   };
@@ -674,6 +679,34 @@
     }
   };
 
+  // Reduced motion can change while the page is open (an OS setting, or a battery saver), so
+  // follow it live: asking for less motion drops every scene back to the plain strip at once,
+  // and clearing it brings the scroll-linked mode back.
+  const applyMotionPreference = () => {
+    const reduced = !CONFIG.ignoreReducedMotion && window.matchMedia(REDUCED_MOTION).matches;
+    controllers.forEach((ctl) => {
+      try {
+        if (reduced && ctl.mode === 'enhanced') {
+          teardown(ctl);
+          ctl.scene.setAttribute('data-seafloor-reason', 'reduced-motion');
+        } else if (!reduced && ctl.mode !== 'enhanced') {
+          enhance(ctl);
+        }
+      } catch (error) {
+        failSafe(ctl, 'motion-preference', error);
+      }
+    });
+  };
+
+  if (typeof window.matchMedia === 'function') {
+    const motionQuery = window.matchMedia(REDUCED_MOTION);
+    if (motionQuery.addEventListener) {
+      motionQuery.addEventListener('change', applyMotionPreference);
+    } else if (motionQuery.addListener) {
+      motionQuery.addListener(applyMotionPreference);
+    }
+  }
+
   // Run the physics for `ms` milliseconds in fixed 60Hz steps, synchronously and without
   // waiting for animation frames. For verification only: it makes the follower testable
   // in a page that is not being painted.
@@ -695,6 +728,7 @@
     teardown,
     advance,
     smoothDamp,
+    applyMotionPreference,
   };
 
   init();
