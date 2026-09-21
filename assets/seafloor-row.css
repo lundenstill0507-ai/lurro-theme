@@ -135,6 +135,12 @@
   overflow-x: hidden;
 }
 
+/* scrollLeft rounds to whole pixels, so the follower puts the leftover fraction of a pixel
+   here (see CONFIG.subpixel in seafloor-row.js). Zero when smoothing is idle or off. */
+.seafloor-scene--enhanced .seafloor-slot {
+  transform: translateX(var(--seafloor-frac, 0px));
+}
+
 .seafloor__plate {
   position: absolute;
   inset: 0;

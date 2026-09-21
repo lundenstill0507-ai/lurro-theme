@@ -37,7 +37,31 @@
     // start dwell only matters if the scene is not at the very top of the page.
     dwellStart: 0,
     dwellEnd: 0.25,
+
+    // --- Weight and inertia -------------------------------------------------
+    // The row follows the page scroll with a critically damped spring, so it can never
+    // overshoot or bounce. smoothTime is how long (s) the row takes to close most of the gap
+    // to where the scroll says it should be: bigger is heavier.
+    smoothTime: 0.45,
+    // Top speed of the row, in slot-widths per second, so a hard flick cannot fling it.
+    maxSpeedSlots: 6,
+    // smoothTime multiplier by input device. Trackpads and touch already carry the OS's own
+    // momentum, so they get less of ours; a mouse wheel arrives in steps and gets all of it.
+    inputScale: { wheel: 1, trackpad: 0.6, touch: 0.4 },
+    // Carry the fraction of a pixel that scrollLeft cannot hold (it rounds to whole px) as a
+    // transform on the slots, so the slow tail of the ease stays smooth on 1x screens.
+    subpixel: true,
   };
+
+  // The follower is at rest when it is this close to (px) and this slow relative to (px/s)
+  // its target; then the animation loop stops.
+  const REST_DISTANCE = 0.05;
+  const REST_VELOCITY = 0.5;
+  // Longest single step the physics will take (s), so a stalled tab cannot cause a lurch.
+  const MAX_DT = 0.05;
+  // If the animation loop is asked to run in a visible tab and no frame arrives within this
+  // long (ms), the scene degrades to direct (unsmoothed) mapping instead of freezing.
+  const WATCHDOG_MS = 1000;
 
   const controllers = [];
   let resizeObserver = null;
@@ -178,7 +202,59 @@
     ctl.scene.style.removeProperty('--seafloor-scene-h');
     ctl.onFocus = null;
     ctl.sync = null;
+    ctl.jump = null;
+    ctl.tick = null;
+    ctl.step = null;
+    ctl.wake = null;
     ctl.geo = null;
+  };
+
+  // Critically damped spring step (the "SmoothDamp" form). Given where the row is, where the
+  // page scroll says it should be, and its velocity, returns the next position and velocity.
+  // The impulse response of a critically damped system is never negative, so for any target
+  // that stays inside [0, travel] the output stays inside it too and only ever approaches:
+  // no overshoot, no bounce. The final check guards the last rounding error of the
+  // approximation.
+  const smoothDamp = (current, target, velocity, smoothTime, maxSpeed, dt) => {
+    const time = Math.max(0.0001, smoothTime);
+    const omega = 2 / time;
+    const x = omega * dt;
+    const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+
+    const maxChange = maxSpeed * time;
+    const change = clamp(current - target, -maxChange, maxChange);
+    const clampedTarget = current - change;
+
+    const temp = (velocity + omega * change) * dt;
+    let nextVelocity = (velocity - omega * temp) * decay;
+    let output = clampedTarget + (change + temp) * decay;
+
+    if (target - current > 0 === output > target) {
+      output = target;
+      nextVelocity = 0;
+    }
+    return [output, nextVelocity];
+  };
+
+  // scrollLeft rounds to whole pixels, so write the integer part there and hand the leftover
+  // fraction to the slots as a transform (see CONFIG.subpixel and the stylesheet).
+  const writeRow = (ctl, x) => {
+    const whole = Math.round(x);
+    ctl.row.scrollLeft = whole;
+    if (CONFIG.subpixel) {
+      ctl.row.style.setProperty('--seafloor-frac', `${(whole - x).toFixed(3)}px`);
+    } else {
+      ctl.row.style.removeProperty('--seafloor-frac');
+    }
+  };
+
+  // Guess the input device from a wheel event. Mouse wheels report whole, large steps (or
+  // line/page units); trackpads report many small, often fractional, deltas. This is a
+  // heuristic, so callers vote (see the wheel listener) rather than flip on one event.
+  const classifyWheel = (event) => {
+    if (event.deltaMode !== 0) return 'wheel';
+    const size = Math.abs(event.deltaY);
+    return Number.isInteger(size) && size >= 40 ? 'wheel' : 'trackpad';
   };
 
   // Pin geometry. The scene is a tall runway; the frame is pinned for `pinLen` px of page
@@ -195,7 +271,23 @@
     const pinTop = parseFloat(frame.style.getPropertyValue('--seafloor-pin-top')) || 0;
     const S0 = sceneTop - pinTop;
 
-    ctl.geo = { travel, frameH, dwellStartPx, dwellEndPx, pinLen, S0, S1: S0 + pinLen };
+    // Distance from one slot to the next (piece + gap): the unit the top speed is set in.
+    const slots = row.querySelectorAll(SLOT);
+    const slotStep =
+      slots.length > 1
+        ? slots[1].getBoundingClientRect().left - slots[0].getBoundingClientRect().left
+        : slots[0].getBoundingClientRect().width;
+
+    ctl.geo = {
+      travel,
+      frameH,
+      dwellStartPx,
+      dwellEndPx,
+      pinLen,
+      S0,
+      S1: S0 + pinLen,
+      slotStep: slotStep > 0 ? slotStep : 300,
+    };
     scene.style.setProperty('--seafloor-scene-h', `${(frameH + pinLen).toFixed(2)}px`);
   };
 
@@ -250,46 +342,161 @@
         return;
       }
 
+      // Follower state. `target` is where the page scroll says the row should be; `pos` is
+      // where it is; `vel` is its speed (px/s).
       ctl.pos = 0;
+      ctl.target = 0;
+      ctl.vel = 0;
+      ctl.input = 'wheel';
+      ctl.inputVotes = 0;
+      ctl.raf = 0;
+      ctl.lastTs = 0;
+      ctl.lastFrame = performance.now();
+      ctl.wakeAt = 0;
+      ctl.watchdog = 0;
+      ctl.degraded = false;
 
-      ctl.sync = () => {
-        ctl.pos = travelForScroll(ctl, window.scrollY);
-        ctl.row.scrollLeft = ctl.pos;
+      // Put the row exactly where the page says, with no easing. Used when the position must
+      // not glide: first paint (including a reload or back navigation that restores the
+      // scroll position), resize, and focus (until the follower takes over that, in step 4).
+      ctl.jump = () => {
+        const target = travelForScroll(ctl, window.scrollY);
+        ctl.target = target;
+        ctl.pos = target;
+        ctl.vel = 0;
+        writeRow(ctl, target);
+      };
+      ctl.sync = ctl.jump;
+
+      // One physics step of dt seconds. Returns true while the row is still moving.
+      ctl.tick = (dt) => {
+        const target = travelForScroll(ctl, window.scrollY);
+        ctl.target = target;
+
+        const smoothTime = Math.max(0.05, CONFIG.smoothTime * (CONFIG.inputScale[ctl.input] || 1));
+        const maxSpeed = CONFIG.maxSpeedSlots * ctl.geo.slotStep;
+        const [pos, vel] = smoothDamp(ctl.pos, target, ctl.vel, smoothTime, maxSpeed, dt);
+        ctl.pos = pos;
+        ctl.vel = vel;
+
+        const atRest = Math.abs(target - pos) < REST_DISTANCE && Math.abs(vel) < REST_VELOCITY;
+        if (atRest) {
+          ctl.pos = target;
+          ctl.vel = 0;
+        }
+        writeRow(ctl, ctl.pos);
+        return !atRest;
+      };
+
+      ctl.step = guard(ctl, 'frame', (timestamp) => {
+        ctl.raf = 0;
+        ctl.lastFrame = performance.now();
+        const dt = ctl.lastTs ? clamp((timestamp - ctl.lastTs) / 1000, 0, MAX_DT) : 1 / 60;
+        ctl.lastTs = timestamp;
+
+        if (ctl.tick(dt)) {
+          ctl.raf = window.requestAnimationFrame(ctl.step);
+        } else {
+          ctl.lastTs = 0;
+        }
+      });
+
+      // The loop only runs while there is something to animate. If it was asked to run in a
+      // visible tab and no frame ever arrives, stop trusting it: degrade to direct mapping
+      // (still pinned, still scroll-driven, just unsmoothed) instead of freezing the row.
+      const checkWatchdog = guard(ctl, 'watchdog', () => {
+        ctl.watchdog = 0;
+        if (ctl.mode !== 'enhanced' || !ctl.raf) return;
+        if (document.visibilityState !== 'visible' || ctl.lastFrame >= ctl.wakeAt) return;
+
+        window.cancelAnimationFrame(ctl.raf);
+        ctl.raf = 0;
+        ctl.degraded = true;
+        ctl.scene.setAttribute('data-seafloor-degraded', 'true');
+        if (window.console && console.warn) {
+          console.warn('[seafloor] animation frames stalled; using direct scroll mapping');
+        }
+        ctl.jump();
+      });
+
+      ctl.wake = () => {
+        if (ctl.degraded) {
+          ctl.jump();
+          return;
+        }
+        if (ctl.raf) return;
+        ctl.lastTs = 0;
+        ctl.wakeAt = performance.now();
+        ctl.raf = window.requestAnimationFrame(ctl.step);
+        window.clearTimeout(ctl.watchdog);
+        ctl.watchdog = window.setTimeout(checkWatchdog, WATCHDOG_MS);
       };
 
       // Focus becomes a page scroll: the page scroll owns the row's position, so moving to a
       // slot means scrolling the page to where that slot is fully visible. The browser's own
-      // focus scroll may already have nudged scrollLeft, which sync() then puts right.
+      // focus scroll may already have nudged scrollLeft, which jump() then puts right.
       ctl.onFocus = guard(ctl, 'focus', (slot) => {
         const want = travelToReveal(ctl, slot);
         if (Math.abs(want - ctl.pos) > 0.5) {
           window.scrollTo({ top: scrollForTravel(ctl, want), behavior: 'instant' });
         }
-        ctl.sync();
+        ctl.jump();
         window.setTimeout(
           guard(ctl, 'focus', () => {
-            if (ctl.sync) ctl.sync();
+            if (ctl.jump) ctl.jump();
           }),
           0
         );
       });
 
-      const onScroll = guard(ctl, 'scroll', () => ctl.sync());
+      const onScroll = guard(ctl, 'scroll', () => ctl.wake());
       const onLayout = guard(ctl, 'layout', () => {
         // fonts.ready cannot be unsubscribed, so this must be inert after teardown.
         if (ctl.mode !== 'enhanced') return;
         refreshGeometry(ctl);
-        ctl.sync();
+        ctl.jump();
+      });
+      const onWheel = guard(ctl, 'wheel', (event) => {
+        const kind = classifyWheel(event);
+        if (kind === ctl.input) {
+          ctl.inputVotes = 0;
+        } else {
+          ctl.inputVotes += 1;
+          if (ctl.inputVotes >= 3) {
+            ctl.input = kind;
+            ctl.inputVotes = 0;
+          }
+        }
+      });
+      const onPointerDown = guard(ctl, 'pointer', (event) => {
+        if (event.pointerType === 'touch' || event.pointerType === 'pen') ctl.input = 'touch';
+      });
+      const onKeyDown = guard(ctl, 'key', (event) => {
+        // Keyboard scrolling arrives as the browser's own short glide; treat it like a wheel.
+        if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) {
+          ctl.input = 'wheel';
+          ctl.inputVotes = 0;
+        }
       });
 
       listen(ctl, window, 'scroll', onScroll, { passive: true });
+      listen(ctl, window, 'wheel', onWheel, { passive: true });
+      listen(ctl, window, 'pointerdown', onPointerDown, { passive: true });
+      listen(ctl, window, 'keydown', onKeyDown, { passive: true });
       listen(ctl, window, 'resize', onLayout);
       listen(ctl, window, 'load', onLayout);
+      listen(ctl, window, 'pageshow', onLayout);
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(onLayout);
 
       const rowObserver = new ResizeObserver(onLayout);
       rowObserver.observe(ctl.row);
       ctl.cleanups.push(() => rowObserver.disconnect());
+      ctl.cleanups.push(() => {
+        window.cancelAnimationFrame(ctl.raf);
+        window.clearTimeout(ctl.watchdog);
+        ctl.row.style.removeProperty('--seafloor-frac');
+        ctl.scene.removeAttribute('data-seafloor-degraded');
+      });
 
       // Last step: only now does the scene claim to be enhanced. Applying the class changes
       // layout (overflow, sticky), so measure once more and put the row where the page says.
@@ -298,7 +505,7 @@
       ctl.scene.setAttribute('data-seafloor-mode', 'enhanced');
       ctl.scene.classList.add(ENHANCED_CLASS);
       refreshGeometry(ctl);
-      ctl.sync();
+      ctl.jump();
     })();
   };
 
@@ -335,8 +542,28 @@
     }
   };
 
-  // Read-only-ish surface used for verification and, later, the tuning panel.
-  window.seafloorRow = { controllers, config: CONFIG, guard, failSafe, enhance, teardown };
+  // Run the physics for `ms` milliseconds in fixed 60Hz steps, synchronously and without
+  // waiting for animation frames. For verification only: it makes the follower testable
+  // in a page that is not being painted.
+  const advance = (ms) => {
+    const step = 1000 / 60;
+    controllers.forEach((ctl) => {
+      if (ctl.mode !== 'enhanced' || !ctl.tick) return;
+      for (let left = ms; left > 0; left -= step) ctl.tick(Math.min(step, left) / 1000);
+    });
+  };
+
+  // Surface used for verification and by the tuning panel.
+  window.seafloorRow = {
+    controllers,
+    config: CONFIG,
+    guard,
+    failSafe,
+    enhance,
+    teardown,
+    advance,
+    smoothDamp,
+  };
 
   init();
   window.addEventListener('resize', measure);
